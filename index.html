@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journey Map: Acts 8-9</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
+
+    <!-- Markdown Parser (Simple) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar for Sidebar */
+        .scroller::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scroller::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .scroller::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        .scroller::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Leaflet Tweaks */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 0;
+            overflow: hidden;
+        }
+        .leaflet-popup-content {
+            margin: 0;
+            width: 300px !important;
+        }
+        .leaflet-container {
+            font-family: 'Inter', sans-serif;
+            background: #e4e4e4; /* Fallback for no-label tiles */
+        }
+        
+        /* Custom Map Labels */
+        .map-city-label {
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            color: #0f172a; /* Darker text for light flat map */
+            text-shadow: 2px 0 0 #fff, -2px 0 0 #fff, 0 2px 0 #fff, 0 -2px 0 #fff, 1px 1px #fff, -1px -1px #fff, 1px -1px #fff, -1px 1px #fff;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none !important;
+            margin-top: -10px !important;
+            margin-left: 12px !important;
+            transition: font-size 0.2s ease, opacity 0.2s ease;
+        }
+        
+        .map-region-label {
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            color: #64748b; /* Darker slate for visibility on white */
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            font-size: 14px;
+            opacity: 0.9;
+            pointer-events: none !important;
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            text-align: center;
+            transition: font-size 0.2s ease, opacity 0.2s ease;
+        }
+
+        /* Zoom-dependent Styling */
+        #map[data-zoom="5"] .map-city-label,
+        #map[data-zoom="6"] .map-city-label,
+        #map[data-zoom="7"] .map-city-label { 
+            font-size: 9px; 
+            opacity: 0.7; 
+        }
+        #map[data-zoom="5"] .map-region-label,
+        #map[data-zoom="6"] .map-region-label,
+        #map[data-zoom="7"] .map-region-label { 
+            font-size: 11px; 
+            opacity: 0.8; 
+        }
+
+        #map[data-zoom="8"] .map-city-label { font-size: 12px; }
+        #map[data-zoom="8"] .map-region-label { font-size: 14px; }
+
+        #map[data-zoom="9"] .map-city-label { font-size: 13px; }
+        #map[data-zoom="9"] .map-region-label { font-size: 15px; }
+
+        #map[data-zoom="10"] .map-city-label { font-size: 15px; }
+        #map[data-zoom="10"] .map-region-label { font-size: 16px; opacity: 0.6; } /* Fade regions when zoomed in close */
+        
+        #map[data-zoom="11"] .map-city-label, 
+        #map[data-zoom="12"] .map-city-label, 
+        #map[data-zoom="13"] .map-city-label { font-size: 18px; }
+        
+        /* Dynamic height for mobile layout */
+        .map-container {
+            height: 100vh;
+        }
+        @media (max-width: 768px) {
+            .map-container {
+                height: 55vh;
+            }
+            .sidebar-container {
+                height: 45vh;
+            }
+        }
+
+        /* AI Modal Styles */
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+        
+        /* Markdown Styles within Modal */
+        .prose h3 { font-size: 1.1em; font-weight: 600; margin-bottom: 0.5em; color: #1e293b; }
+        .prose p { margin-bottom: 0.8em; line-height: 1.6; color: #334155; }
+        .prose strong { color: #0f172a; font-weight: 600; }
+        .prose ul { list-style-type: disc; padding-left: 1.2em; margin-bottom: 0.8em; }
+        .prose li { margin-bottom: 0.3em; }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen w-screen overflow-hidden flex flex-col md:flex-row relative">
+
+    <!-- AI Modal Overlay -->
+    <div id="ai-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-fade-in">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <div class="flex items-center gap-2">
+                    <i class="ph-fill ph-sparkle text-purple-600 text-xl"></i>
+                    <h2 id="modal-title" class="font-bold text-gray-800 text-lg">AI Insight</h2>
+                </div>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition">
+                    <i class="ph ph-x text-xl"></i>
+                </button>
+            </div>
+            <!-- Modal Body -->
+            <div id="modal-body" class="p-6 overflow-y-auto scroller prose text-sm">
+                <!-- Content injected here -->
+            </div>
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar / Info Panel -->
+    <div class="sidebar-container w-full md:w-[400px] bg-white shadow-xl z-20 flex flex-col relative order-2 md:order-1 border-r border-gray-200">
+        
+        <!-- Header -->
+        <div class="p-4 border-b border-gray-100 bg-white z-10">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="bg-blue-600 text-white p-2 rounded-lg shadow-blue-200 shadow-lg">
+                    <i class="ph ph-map-trifold text-xl"></i>
+                </div>
+                <div class="flex-1">
+                    <h1 class="font-bold text-gray-800 text-lg leading-tight">Acts 8:1 - 9:19</h1>
+                    <p class="text-xs text-gray-500 font-medium">Philip's Ministry & Saul's Conversion</p>
+                </div>
+                
+                <div class="flex gap-1">
+                    <!-- Toggle Markers Button -->
+                    <button onclick="toggleMarkers()" id="btn-toggle-markers" class="group flex items-center justify-center w-8 h-8 bg-white border border-gray-200 text-gray-500 rounded-full hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition shadow-sm" title="Toggle Markers">
+                        <i class="ph ph-map-pin text-lg"></i>
+                    </button>
+
+                    <!-- Export Button -->
+                    <button onclick="exportMap()" id="btn-export" class="group flex items-center justify-center w-8 h-8 bg-white border border-gray-200 text-gray-500 rounded-full hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition shadow-sm" title="Export Map Image">
+                        <i class="ph ph-camera text-lg"></i>
+                    </button>
+
+                    <!-- Full Screen Button -->
+                    <button onclick="toggleFullScreen()" id="btn-fullscreen" class="group flex items-center justify-center w-8 h-8 bg-white border border-gray-200 text-gray-500 rounded-full hover:bg-gray-50 hover:text-gray-700 hover:border-gray-300 transition shadow-sm" title="Toggle Full Screen">
+                        <i class="ph ph-arrows-out text-lg"></i>
+                    </button>
+                    
+                    <!-- AI Devotional Button -->
+                    <button onclick="triggerDevotional()" class="group flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-indigo-50 text-indigo-700 border border-indigo-100 rounded-full hover:shadow-md transition text-xs font-semibold">
+                        <i class="ph-fill ph-sparkle text-indigo-500 group-hover:animate-pulse"></i>
+                        Reflect
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Filters / Legend -->
+            <div class="flex gap-2 mt-3">
+                <button onclick="filterRoute('all')" class="flex-1 py-1.5 px-3 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition active-filter ring-1 ring-gray-200" id="btn-all">
+                    All
+                </button>
+                <button onclick="filterRoute('philip')" class="flex-1 py-1.5 px-3 rounded-full text-xs font-medium bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50 transition" id="btn-philip">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1"></span> Philip
+                </button>
+                <button onclick="filterRoute('saul')" class="flex-1 py-1.5 px-3 rounded-full text-xs font-medium bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition" id="btn-saul">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 inline-block mr-1"></span> Saul
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable List -->
+        <div class="scroller flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50" id="locations-list">
+            <!-- Items injected by JS -->
+        </div>
+
+        <!-- Mobile Handle (Visual only) -->
+        <div class="md:hidden absolute top-0 left-0 w-full flex justify-center pt-2 pointer-events-none">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map" class="map-container w-full flex-1 bg-gray-100 order-1 md:order-2 z-10 relative"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet Screenshoter (LOADED AFTER LEAFLET) -->
+    <script src="https://unpkg.com/leaflet-simple-map-screenshoter"></script>
+
+    <script>
+        // --- Configuration ---
+        const apiKey = ""; // API Key injected by environment
+
+        // --- Data: Static Biblical Labels ---
+        const staticLabels = [
+            // Regions
+            { name: "JUDEA", coords: [31.65, 35.1], type: "region" },
+            { name: "SAMARIA", coords: [32.2, 35.25], type: "region" },
+            { name: "GALILEE", coords: [32.8, 35.35], type: "region" },
+            { name: "SYRIA", coords: [33.3, 36.3], type: "region" },
+            { name: "PHOENICIA", coords: [33.0, 35.1], type: "region" },
+            // Cities (Biblical)
+            { name: "Jerusalem", coords: [31.7683, 35.2137], type: "city" },
+            { name: "Samaria", coords: [32.2211, 35.2544], type: "city" },
+            { name: "Caesarea", coords: [32.5006, 34.8966], type: "city" },
+            { name: "Azotus", coords: [31.8014, 34.6435], type: "city" },
+            { name: "Gaza", coords: [31.5, 34.4667], type: "city" },
+            { name: "Damascus", coords: [33.5097, 36.309], type: "city" },
+            { name: "Joppa", coords: [32.0536, 34.7550], type: "city" },
+            { name: "Lydda", coords: [31.9519, 34.8881], type: "city" }
+        ];
+
+        // --- Data: Events ---
+        const events = [
+            {
+                id: 1,
+                title: "Persecution Scatters Believers",
+                ref: "Acts 8:1",
+                desc: "Great persecution breaks out against the church in Jerusalem. Believers scatter throughout Judea and Samaria.",
+                coords: [31.7683, 35.2137], // Jerusalem
+                character: "philip",
+                type: "start",
+                icon: "ph-hands-praying"
+            },
+            {
+                id: 2,
+                title: "Philip in Samaria",
+                ref: "Acts 8:5",
+                desc: "Philip goes down to a city in Samaria, proclaims the Messiah, and performs miracles.",
+                coords: [32.2211, 35.2544], // Samaria
+                character: "philip",
+                type: "stop",
+                icon: "ph-users-three"
+            },
+            {
+                id: 3,
+                title: "The Desert Road",
+                ref: "Acts 8:26",
+                desc: "An angel tells Philip to go south to the road—the desert road—that goes down from Jerusalem to Gaza.",
+                coords: [31.6, 34.85], // Approximate point on road near Beit Guvrin
+                character: "philip",
+                type: "travel",
+                icon: "ph-path"
+            },
+            {
+                id: 4,
+                title: "Philip & The Ethiopian",
+                ref: "Acts 8:36-38",
+                desc: "Philip meets the Ethiopian eunuch in his chariot. He explains Isaiah, and baptizes him when they find water.",
+                coords: [31.52, 34.75], // Further south towards Gaza
+                character: "philip",
+                type: "key",
+                icon: "ph-drop"
+            },
+            {
+                id: 5,
+                title: "Azotus",
+                ref: "Acts 8:40",
+                desc: "The Spirit of the Lord takes Philip away, and he appears at Azotus.",
+                coords: [31.8014, 34.6435], // Azotus
+                character: "philip",
+                type: "stop",
+                icon: "ph-person-simple-run"
+            },
+            {
+                id: 6,
+                title: "Caesarea",
+                ref: "Acts 8:40",
+                desc: "Philip travels about, preaching the gospel in all the towns until he reaches Caesarea.",
+                coords: [32.5006, 34.8966], // Caesarea Maritima
+                character: "philip",
+                type: "end",
+                icon: "ph-house"
+            },
+            {
+                id: 7,
+                title: "Saul's Murderous Threats",
+                ref: "Acts 9:1-2",
+                desc: "Saul, breathing threats against disciples, goes to the High Priest in Jerusalem for letters to Damascus.",
+                coords: [31.7783, 35.2237], // Jerusalem (Temple Mount area approx)
+                character: "saul",
+                type: "start",
+                icon: "ph-scroll"
+            },
+            {
+                id: 8,
+                title: "The Road to Damascus",
+                ref: "Acts 9:3",
+                desc: "As he nears Damascus, a light from heaven suddenly flashes around him. He falls to the ground.",
+                coords: [33.45, 36.25], // Just outside Damascus
+                character: "saul",
+                type: "key",
+                icon: "ph-sun"
+            },
+            {
+                id: 9,
+                title: "Street Called Straight",
+                ref: "Acts 9:11",
+                desc: "Saul is led blind into Damascus. He stays at the house of Judas on Straight Street, where Ananias restores his sight.",
+                coords: [33.5097, 36.309], // Old City Damascus
+                character: "saul",
+                type: "end",
+                icon: "ph-eye"
+            }
+        ];
+
+        // Route Coordinates (Approximations for visualization)
+        const philipRoute = [
+            [31.7683, 35.2137], // Jerusalem
+            [32.2211, 35.2544], // Samaria
+            [31.7683, 35.2137], // Back near Jerusalem (implied travel path south)
+            [31.6, 34.85],      // Desert Road
+            [31.52, 34.75],     // Baptism Site
+            [31.8014, 34.6435], // Azotus
+            [32.1, 34.75],      // Coastal preaching
+            [32.5006, 34.8966]  // Caesarea
+        ];
+
+        const saulRoute = [
+            [31.7683, 35.2137], // Jerusalem
+            [32.22, 35.50],     // Jordan Valley route (common ancient route)
+            [32.80, 35.60],     // Sea of Galilee area
+            [33.20, 35.80],     // Golan/Syria approach
+            [33.45, 36.25],     // Near Damascus
+            [33.5097, 36.309]   // Damascus City
+        ];
+
+        let activeCharacter = 'all';
+
+        // --- Map Initialization ---
+        // Center between Jerusalem and Damascus
+        const map = L.map('map', {
+            zoomControl: false 
+        }).setView([32.6, 35.5], 8);
+
+        // Add Zoom Control to bottom right
+        L.control.zoom({
+            position: 'bottomright'
+        }).addTo(map);
+
+        // Track Zoom Level for CSS Styling
+        function updateZoomAttribute() {
+            const zoom = Math.round(map.getZoom());
+            document.getElementById('map').setAttribute('data-zoom', zoom);
+        }
+        map.on('zoomend', updateZoomAttribute);
+        updateZoomAttribute(); // Initialize
+
+        // Base Layer - CartoDB Positron No Labels (Flat, Clean)
+        // Added crossOrigin: true to allow screenshot capture
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19,
+            crossOrigin: true
+        }).addTo(map);
+
+        // Initialize Screenshoter
+        let screenshoter;
+        try {
+           screenshoter = L.simpleMapScreenshoter({
+              hidden: true, // Hide default button
+              mimeType: 'image/png'
+           }).addTo(map);
+        } catch (e) {
+           console.error("Screenshoter failed to load", e);
+        }
+
+        // Layer Groups
+        const labelsGroup = L.layerGroup().addTo(map);
+        const markersGroup = L.layerGroup().addTo(map);
+        const routesGroup = L.layerGroup().addTo(map);
+
+        // --- Marker Toggle Function ---
+        let markersVisible = true;
+
+        function toggleMarkers() {
+            markersVisible = !markersVisible;
+            const btn = document.getElementById('btn-toggle-markers');
+            const icon = btn.querySelector('i');
+
+            if (markersVisible) {
+                map.addLayer(markersGroup);
+                icon.className = "ph ph-map-pin text-lg";
+                icon.classList.remove('text-gray-400');
+                btn.classList.remove('bg-gray-100');
+                btn.classList.add('bg-white');
+            } else {
+                map.removeLayer(markersGroup);
+                icon.className = "ph ph-map-pin-slash text-lg";
+                icon.classList.add('text-gray-400');
+                btn.classList.add('bg-gray-100');
+                btn.classList.remove('bg-white');
+            }
+        }
+
+        // --- Full Screen / Zen Mode Logic ---
+        let isZenMode = false;
+
+        function toggleFullScreen() {
+            // Check if we are already in native fullscreen
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+                return;
+            }
+
+            // Check if we are in Zen Mode (fallback)
+            if (isZenMode) {
+                toggleZenMode(); // Turn it off
+                return;
+            }
+
+            // Try entering native fullscreen
+            document.documentElement.requestFullscreen()
+                .then(() => {
+                    // Native worked. 'fullscreenchange' listener handles UI updates.
+                })
+                .catch(err => {
+                    console.warn("Native fullscreen blocked, falling back to Zen Mode (Sidebar toggle).");
+                    toggleZenMode(); // Turn it on as fallback
+                });
+        }
+
+        function toggleZenMode() {
+            const sidebar = document.querySelector('.sidebar-container');
+            const btn = document.getElementById('btn-fullscreen');
+            const icon = btn.querySelector('i');
+            
+            isZenMode = !isZenMode;
+            
+            if (isZenMode) {
+                sidebar.classList.add('hidden');
+                icon.classList.replace('ph-arrows-out', 'ph-arrows-in');
+                btn.title = "Exit Full Screen";
+            } else {
+                sidebar.classList.remove('hidden');
+                icon.classList.replace('ph-arrows-in', 'ph-arrows-out');
+                btn.title = "Enter Full Screen";
+            }
+            
+            // Re-calc map size since container changed
+            setTimeout(() => { map.invalidateSize(); }, 200);
+        }
+
+        // Listen for fullscreen change events to update icon (Native only)
+        document.addEventListener('fullscreenchange', () => {
+            const btn = document.getElementById('btn-fullscreen');
+            const icon = btn.querySelector('i');
+            
+            if (document.fullscreenElement) {
+                // Entered native fullscreen
+                icon.classList.replace('ph-arrows-out', 'ph-arrows-in');
+                btn.title = "Exit Full Screen";
+            } else {
+                // Exited native fullscreen
+                // Only revert icon if NOT in Zen Mode (otherwise we might show 'expand' icon while still in zen mode)
+                if (!isZenMode) { 
+                    icon.classList.replace('ph-arrows-in', 'ph-arrows-out');
+                    btn.title = "Enter Full Screen";
+                }
+            }
+        });
+
+        // --- Export Function ---
+        function exportMap() {
+            if (!screenshoter) {
+                alert("Export functionality unavailable.");
+                return;
+            }
+            const btn = document.getElementById('btn-export');
+            const icon = btn.querySelector('i');
+            
+            // UI Feedback
+            const originalIcon = icon.className;
+            icon.className = "ph ph-spinner animate-spin text-lg text-blue-600";
+            btn.classList.add('bg-blue-50', 'border-blue-200');
+            
+            // Wait slight delay for UI to update then capture
+            setTimeout(() => {
+                screenshoter.takeScreen('blob', {
+                    caption: function () {
+                        return 'Acts 8-9 Journey Map';
+                    }
+                }).then(blob => {
+                    const link = document.createElement('a');
+                    link.download = `Acts_Journey_Map_${new Date().toISOString().slice(0,10)}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    
+                    // Reset UI
+                    icon.className = originalIcon;
+                    btn.classList.remove('bg-blue-50', 'border-blue-200');
+                }).catch(e => {
+                    console.error(e);
+                    alert('Error exporting map. Please try again.');
+                    icon.className = originalIcon;
+                    btn.classList.remove('bg-blue-50', 'border-blue-200');
+                });
+            }, 100);
+        }
+
+        // --- Gemini API Logic ---
+        async function callGemini(prompt) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+
+            // Retry logic
+            const delays = [1000, 2000, 4000];
+            for (let i = 0; i <= delays.length; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+                } catch (error) {
+                    if (i === delays.length) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        // --- UI Logic: Modal & AI Handlers ---
+        
+        function openModal(title, initialContent = null) {
+            const modal = document.getElementById('ai-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+            
+            modalTitle.textContent = title;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            if (initialContent) {
+                modalBody.innerHTML = initialContent;
+            } else {
+                modalBody.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                        <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center animate-bounce">
+                             <i class="ph-fill ph-sparkle text-indigo-500 text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-indigo-900 font-semibold text-lg">Consulting Gemini...</p>
+                            <p class="text-gray-500 text-sm loading-dots">Analyzing ancient texts</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('ai-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function triggerDeepDive(eventId) {
+            const event = events.find(e => e.id === eventId);
+            if (!event) return;
+
+            openModal(`Deep Dive: ${event.title}`);
+
+            const prompt = `
+                You are a biblical scholar and historian.
+                Context: The user is looking at a map of Acts 8-9.
+                Event: "${event.title}" (${event.ref}).
+                Description: "${event.desc}"
+                Location Coordinates: ${event.coords}.
+                
+                Please provide a fascinating, 3-4 sentence historical, geographical, or theological insight about this specific event and location in the 1st Century.
+                Explain why this location matters or what the cultural context was at the time. 
+                Format as valid Markdown.
+            `;
+
+            try {
+                const text = await callGemini(prompt);
+                document.getElementById('modal-body').innerHTML = marked.parse(text);
+            } catch (err) {
+                document.getElementById('modal-body').innerHTML = `
+                    <div class="text-red-500 text-center py-8">
+                        <i class="ph ph-warning-circle text-3xl mb-2"></i>
+                        <p>Sorry, I couldn't reach the archives right now.</p>
+                        <p class="text-xs mt-2 text-gray-400">${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function triggerDevotional() {
+            const context = activeCharacter === 'all' 
+                ? "the early church in Acts 8-9" 
+                : activeCharacter === 'philip' 
+                    ? "Philip the Evangelist in Acts 8" 
+                    : "Saul of Tarsus (Paul) in Acts 9";
+            
+            openModal(`Reflection: ${context.charAt(0).toUpperCase() + context.slice(1)}`);
+
+            const prompt = `
+                You are a thoughtful spiritual mentor.
+                Context: The user is exploring the journey of ${context} on a map.
+                
+                Write a short, inspiring devotional (approx 100-150 words) based on the themes of this journey (e.g., obedience, transformation, courage, evangelism).
+                Include a brief prayer at the end.
+                Format as valid Markdown with a bold title.
+            `;
+
+            try {
+                const text = await callGemini(prompt);
+                document.getElementById('modal-body').innerHTML = marked.parse(text);
+            } catch (err) {
+                document.getElementById('modal-body').innerHTML = `<p class="text-red-500">Unable to generate reflection at this time.</p>`;
+            }
+        }
+
+        // Close modal on outside click
+        document.getElementById('ai-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'ai-modal') closeModal();
+        });
+
+        // --- Helpers ---
+        function getIconHtml(type, character) {
+            const color = character === 'philip' ? 'bg-emerald-500' : 'bg-indigo-500';
+            const icon = type === 'start' ? 'ph-flag' : 
+                         type === 'end' ? 'ph-flag-checkered' : 
+                         'ph-map-pin';
+            
+            return `
+                <div class="relative flex items-center justify-center w-8 h-8 rounded-full border-2 border-white shadow-lg ${color} text-white transform transition hover:scale-110">
+                    <i class="ph-bold ${icon} text-lg"></i>
+                </div>
+            `;
+        }
+
+        // --- Render Functions ---
+
+        function drawStaticLabels() {
+            staticLabels.forEach(label => {
+                const className = label.type === 'region' ? 'map-region-label' : 'map-city-label';
+                
+                const icon = L.divIcon({
+                    className: className,
+                    html: label.name,
+                    iconSize: [100, 20], // Adjust as needed
+                    iconAnchor: [50, 10]
+                });
+
+                L.marker(label.coords, { icon: icon, interactive: false }).addTo(labelsGroup);
+            });
+        }
+
+        let activePolylinePhilip;
+        let activePolylineSaul;
+
+        function drawRoutes() {
+            // Philip's Route
+            activePolylinePhilip = L.polyline(philipRoute, {
+                color: '#10b981', // Emerald 500
+                weight: 4,
+                opacity: 0.8,
+                dashArray: '10, 10',
+                lineCap: 'round'
+            }).addTo(routesGroup);
+
+            // Saul's Route
+            activePolylineSaul = L.polyline(saulRoute, {
+                color: '#6366f1', // Indigo 500
+                weight: 4,
+                opacity: 0.8,
+                dashArray: '5, 10',
+                lineCap: 'round'
+            }).addTo(routesGroup);
+        }
+
+        function createMarkers(filter = 'all') {
+            markersGroup.clearLayers();
+            const listContainer = document.getElementById('locations-list');
+            listContainer.innerHTML = '';
+
+            events.forEach((event) => {
+                if (filter !== 'all' && event.character !== filter) return;
+
+                // 1. Add Marker to Map
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: getIconHtml(event.type, event.character),
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 32],
+                    popupAnchor: [0, -32]
+                });
+
+                const marker = L.marker(event.coords, { icon: icon }).addTo(markersGroup);
+                
+                // Popup Content with AI Button
+                const btnColor = event.character === 'philip' ? 'emerald' : 'indigo';
+                
+                const popupContent = `
+                    <div class="bg-white rounded-xl overflow-hidden">
+                        <div class="p-4 pb-3">
+                            <div class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1 flex justify-between">
+                                <span>${event.ref}</span>
+                                <i class="ph-fill ph-map-pin text-${btnColor}-500"></i>
+                            </div>
+                            <h3 class="font-bold text-gray-800 text-base mb-2 leading-tight">${event.title}</h3>
+                            <p class="text-sm text-gray-600 leading-relaxed mb-4">${event.desc}</p>
+                            
+                            <button onclick="triggerDeepDive(${event.id})" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-${btnColor}-50 to-${btnColor}-100 hover:from-${btnColor}-100 hover:to-${btnColor}-200 text-${btnColor}-700 rounded-lg text-xs font-bold transition shadow-sm border border-${btnColor}-200 group">
+                                <i class="ph-fill ph-sparkle text-${btnColor}-500 group-hover:animate-pulse"></i>
+                                Deep Dive ✨
+                            </button>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+
+                // 2. Add Item to Sidebar List
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer transition flex gap-3 items-start group`;
+                itemDiv.onclick = () => {
+                    // Highlight logic
+                    document.querySelectorAll('#locations-list > div').forEach(el => el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50'));
+                    itemDiv.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
+                    
+                    // Map flyTo
+                    map.flyTo(event.coords, 10, { duration: 1.5 });
+                    marker.openPopup();
+                };
+
+                const charColor = event.character === 'philip' ? 'text-emerald-600 bg-emerald-50' : 'text-indigo-600 bg-indigo-50';
+
+                itemDiv.innerHTML = `
+                    <div class="mt-1 flex-shrink-0 w-8 h-8 rounded-full ${charColor} flex items-center justify-center">
+                        <i class="ph ${event.icon} text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-0.5">
+                            <h3 class="font-semibold text-gray-800 text-sm">${event.title}</h3>
+                            <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">${event.ref}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 line-clamp-2 group-hover:text-gray-700">${event.desc}</p>
+                    </div>
+                `;
+
+                listContainer.appendChild(itemDiv);
+            });
+        }
+
+        // --- Filtering Logic ---
+        function filterRoute(character) {
+            activeCharacter = character;
+            
+            // Update buttons
+            document.getElementById('btn-all').className = `flex-1 py-1.5 px-3 rounded-full text-xs font-medium transition ${character === 'all' ? 'bg-gray-800 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
+            document.getElementById('btn-philip').className = `flex-1 py-1.5 px-3 rounded-full text-xs font-medium transition border ${character === 'philip' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`;
+            document.getElementById('btn-saul').className = `flex-1 py-1.5 px-3 rounded-full text-xs font-medium transition border ${character === 'saul' ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50'}`;
+
+            // Update Map Routes visibility
+            if (character === 'all') {
+                if(!map.hasLayer(activePolylinePhilip)) activePolylinePhilip.addTo(routesGroup);
+                if(!map.hasLayer(activePolylineSaul)) activePolylineSaul.addTo(routesGroup);
+                map.flyTo([32.6, 35.5], 8);
+            } else if (character === 'philip') {
+                if(!map.hasLayer(activePolylinePhilip)) activePolylinePhilip.addTo(routesGroup);
+                if(map.hasLayer(activePolylineSaul)) activePolylineSaul.remove();
+                map.flyToBounds(activePolylinePhilip.getBounds(), { padding: [50, 50] });
+            } else if (character === 'saul') {
+                if(map.hasLayer(activePolylinePhilip)) activePolylinePhilip.remove();
+                if(!map.hasLayer(activePolylineSaul)) activePolylineSaul.addTo(routesGroup);
+                map.flyToBounds(activePolylineSaul.getBounds(), { padding: [50, 50] });
+            }
+
+            // Rebuild List & Markers
+            createMarkers(character);
+        }
+
+        // --- Initialization ---
+        drawStaticLabels();
+        drawRoutes();
+        createMarkers('all');
+        
+        // Handle Sidebar Default Selection
+        document.getElementById('btn-all').click();
+
+        // Add a legend control to the map
+        const legend = L.control({position: 'bottomleft'});
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend bg-white p-2 rounded shadow-lg text-xs');
+            div.innerHTML = `
+                <div class="flex items-center gap-2 mb-1"><span class="w-3 h-1 bg-emerald-500 rounded"></span> Philip's Route</div>
+                <div class="flex items-center gap-2"><span class="w-3 h-1 bg-indigo-500 rounded"></span> Saul's Route</div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+    </script>
+</body>
+</html>
