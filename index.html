@@ -505,7 +505,11 @@
                     CRITICAL: Include static map labels for EVERY city, town, and region mentioned in the text. Also include major surrounding regions. Format regions in ALL CAPS, cities in Title Case.
                 `;
 
-                const jsonStr = await callGemini(prompt, true);
+                let jsonStr = await callGemini(prompt, true);
+                
+                // Clean potential Markdown formatting from AI response
+                jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+                
                 const newData = JSON.parse(jsonStr);
                 
                 // Update App State
@@ -993,7 +997,11 @@
                 Return JSON in ${t.langName}: { "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "..." }
             `;
             try {
-                const jsonStr = await callGemini(prompt, true);
+                let jsonStr = await callGemini(prompt, true);
+                
+                // Clean potential Markdown formatting from AI response
+                jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+                
                 const quiz = JSON.parse(jsonStr);
                 const modalBody = document.getElementById('modal-body');
                 modalBody.innerHTML = `
