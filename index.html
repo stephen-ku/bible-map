@@ -455,6 +455,20 @@
             });
         }
 
+        // --- Helper: Robust JSON Extraction ---
+        function cleanJsonString(str) {
+            // Find the first '{' and the last '}'
+            const firstOpen = str.indexOf('{');
+            const lastClose = str.lastIndexOf('}');
+            
+            if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+                return str.substring(firstOpen, lastClose + 1);
+            }
+            
+            // Fallback
+            return str.replace(/```json/g, '').replace(/```/g, '').trim();
+        }
+
         // --- Main Logic: Fetch Bible Data ---
         async function handleSearch() {
             const input = document.getElementById('passage-input');
@@ -507,8 +521,8 @@
 
                 let jsonStr = await callGemini(prompt, true);
                 
-                // Clean potential Markdown formatting from AI response
-                jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+                // Clean potential Markdown formatting from AI response using robust helper
+                jsonStr = cleanJsonString(jsonStr);
                 
                 const newData = JSON.parse(jsonStr);
                 
@@ -998,10 +1012,7 @@
             `;
             try {
                 let jsonStr = await callGemini(prompt, true);
-                
-                // Clean potential Markdown formatting from AI response
-                jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
-                
+                jsonStr = cleanJsonString(jsonStr);
                 const quiz = JSON.parse(jsonStr);
                 const modalBody = document.getElementById('modal-body');
                 modalBody.innerHTML = `
